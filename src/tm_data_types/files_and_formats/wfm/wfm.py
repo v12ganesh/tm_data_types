@@ -1,9 +1,10 @@
 """The file formatting for a .wfm file."""
 
+import logging
 import struct
 
 from abc import ABC, abstractmethod
-from typing import ClassVar, Dict, Union
+from typing import Any, ClassVar, Dict
 
 import numpy as np
 
@@ -24,6 +25,8 @@ from tm_data_types.helpers.byte_data_types import (
     UnsignedLongLong,
 )
 from tm_data_types.helpers.enums import ByteOrderFormat, CurveFormatsVer3, VersionNumber
+
+logger = logging.getLogger(__name__)
 
 
 class WFMFile(AbstractedFile[DATUM_TYPE_VAR], ABC):
@@ -64,6 +67,7 @@ class WFMFile(AbstractedFile[DATUM_TYPE_VAR], ABC):
     # a lookup for the meta info class to what's provided by the .wfm file
     _META_DATA_LOOKUP = bidict(
         {
+            "waveform_label": "waveform_label",
             "y_offset": "yOffset",
             "y_position": "yPosition",
             "analog_thumbnail": "ANALOG_Thumbnail",
@@ -102,9 +106,9 @@ class WFMFile(AbstractedFile[DATUM_TYPE_VAR], ABC):
         self.fd.seek(curve_local - 5 + (20 if enum_version_num == VersionNumber.THREE else 0))
 
         # parse it and check to see if it can be put into the meta info dataclass
-        meta_data = WfmFormat.parse_tekmeta(endian_prefix, self.fd)
+        WfmFormat.parse_tekmeta(endian_prefix, self.fd)
         self.fd.seek(0)
-        return self._check_metadata(meta_data)
+        return self._check_metadata()
 
     # Reading
     def read_datum(self) -> DATUM_TYPE_VAR:
@@ -128,9 +132,30 @@ class WFMFile(AbstractedFile[DATUM_TYPE_VAR], ABC):
         formatted_data.unpack_wfm_file(endian_prefix, version_number, self.fd)
 
         waveform: DATUM_TYPE_VAR = self.DATUM_TYPE()  # pylint: disable=abstract-class-instantiated
-        meta_data = self.META_DATA_TYPE(
-            **self.META_DATA_TYPE.remap(self._META_DATA_LOOKUP.inverse, formatted_data.meta_data),
+        # In read_datum, known and unknown keys are separated:
+        remapped = self.META_DATA_TYPE.remap(
+            self._META_DATA_LOOKUP.inverse, formatted_data.meta_data
         )
+
+        # Convert bytes to strings for string-like metadata
+        def convert_bytes_to_str(value):
+            if isinstance(value, bytes):
+                try:
+                    return value.decode("utf-8")
+                except UnicodeDecodeError:
+                    return value
+            return value
+
+        remapped = {k: convert_bytes_to_str(v) for k, v in remapped.items()}
+
+        # Collect all annotated fields from the class and its parents
+        known_fields = set()
+        for cls in self.META_DATA_TYPE.__mro__:
+            if hasattr(cls, "__annotations__"):
+                known_fields.update(cls.__annotations__.keys())
+        known_data = {k: v for k, v in remapped.items() if k in known_fields}
+        extra_data = {k: v for k, v in remapped.items() if k not in known_fields}
+        meta_data = self.META_DATA_TYPE(**known_data, extended_metadata=extra_data or None)
         if formatted_data.implicit_dimensions is not None:
             waveform.x_axis_units = formatted_data.implicit_dimensions.first.units
             waveform.x_axis_spacing = formatted_data.implicit_dimensions.first.scale
@@ -158,15 +183,23 @@ class WFMFile(AbstractedFile[DATUM_TYPE_VAR], ABC):
 
         formatted_data = WfmFormat()
         if waveform.meta_info:
-            exclusive_meta_data = waveform.meta_info.operable_exclusive_metadata()
-
+            # Get all metadata, including extended metadata
+            all_metadata = {}
+            if waveform.meta_info.extended_metadata:
+                all_metadata.update(waveform.meta_info.extended_metadata)
+            # Add standard metadata, excluding extended_metadata field
+            all_metadata = {
+                key: value
+                for key, value in waveform.meta_info.operable_metainfo().items()
+                if key != "extended_metadata"
+            }
+            # Remap all metadata using the lookup table
             formatted_data.meta_data = self.META_DATA_TYPE.remap(
                 self._META_DATA_LOOKUP,
-                exclusive_meta_data,
+                all_metadata,
             )
         else:
             formatted_data.meta_data = self.META_DATA_TYPE.remap(self._META_DATA_LOOKUP, {})
-        self._waveform_vertical_values_to_format(waveform, formatted_data)
 
         if waveform.trigger_index is None:
             trigger_index = waveform.normalized_vertical_values.size / 2
@@ -187,31 +220,14 @@ class WFMFile(AbstractedFile[DATUM_TYPE_VAR], ABC):
     ################################################################################################
 
     # Reading
-    def _check_metadata(self, meta_data: Dict[str, Union[str, Double, Long, UnsignedLong]]) -> bool:
-        """Check the metadata and see if it fits for the format.
-
-        Args:
-            meta_data: A dictionary representing the tekmeta read from the file.
-
-        Returns:
-            An indication that this is the correct format to use.
-        """
-        if meta_data:
-            try:
-                self.META_DATA_TYPE(
-                    **self.META_DATA_TYPE.remap(self._META_DATA_LOOKUP.inverse, meta_data),
-                )
-            except TypeError as e:
-                # if you have too many keywords, this format doesn't work
-                if "unexpected keyword" in str(e):  # noqa: SIM103
-                    return False
-                # if we are missing some keywords, that is fine
-                return True
-            except KeyError:
-                return False
-            return True
-
-        # if no tekmeta, the file is an analog waveform
+    @staticmethod
+    def _check_metadata() -> bool:
+        """Check if metadata can be used to construct a WaveformMetaInfo object."""
+        try:
+            # Just try to construct with empty known fields - we'll handle the rest in read_datum
+            WaveformMetaInfo()
+        except TypeError:
+            return False
         return True
 
     # Reading
@@ -241,3 +257,18 @@ class WFMFile(AbstractedFile[DATUM_TYPE_VAR], ABC):
             Returns an analog waveform created from the formatted data.
         """
         raise NotImplementedError
+
+    def remap(self, data: dict[str, Any]) -> dict[str, Any]:
+        """Remap the data to the correct format."""
+        result = self.remap_keys(data)
+        return result
+
+    def remap_keys(self, data: dict) -> dict:
+        """Remap keys according to the lookup dictionary."""
+        remapped = {}
+        for key, value in data.items():
+            if key in self._META_DATA_LOOKUP:
+                remapped[self._META_DATA_LOOKUP[key]] = value
+            else:
+                remapped[key] = value
+        return remapped

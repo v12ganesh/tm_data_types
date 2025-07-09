@@ -274,6 +274,7 @@ ignore = [
   "FBT",  # flake8-boolean-trap  # TODO: enable this
   "FIX002",  # Line contains TO DO
   "ISC001",  # single-line-implicit-string-concatenation (handled by formatter)
+  "PLC0415",  # Ignore import outside toplevel warning from ruff
   "PTH",  # flake8-use-pathlib  # TODO: enable this
   "RET504",  # Unnecessary assignment to ... before return statement  # TODO: enable this
   "TD002",  # Missing author in TO DO

@@ -6,13 +6,12 @@ from typing import Any, Dict, Optional
 
 import numpy as np
 
-from bidict import bidict
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 from tm_data_types.datum.data_types import MeasuredData
 from tm_data_types.datum.datum import Datum
 from tm_data_types.helpers.byte_data_class import EnforcedTypeDataClass
-from tm_data_types.helpers.enums import Enum, SIBaseUnit
+from tm_data_types.helpers.enums import SIBaseUnit
 
 
 # pylint: disable=too-few-public-methods
@@ -56,23 +55,26 @@ class WaveformMetaInfo(ExclusiveMetaInfo):
         }
         return data
 
-    @staticmethod
+    @classmethod
     def remap(
-        lookup: bidict[str, str],
-        data: Dict[str, Any],
-        drop_non_existant: bool = False,
-    ) -> Dict[str, Any]:
-        """Remap the pythonic naming convention to tekmeta naming/ file format naming.
-
-        Returns:
-            A dictionary which provides the opposite naming convention.
-        """
-        remapped_dict = {
-            lookup[key]: (val if not isinstance(val, Enum) else val.value)
-            for key, val in data.items()
-            if key in lookup or not drop_non_existant
-        }
+        cls, lookup: dict[str, str], data: dict[str, Any], drop_non_existant: bool = False
+    ) -> dict[str, Any]:
+        """Remap the data to the correct format."""
+        remapped_dict = {}
+        for key, value in data.items():
+            if key in lookup:
+                remapped_dict[lookup[key]] = value
+            elif not drop_non_existant:
+                remapped_dict[key] = value
         return remapped_dict
+
+    extended_metadata: Optional[Dict[str, Any]] = None
+
+    def __getattr__(self, name: str) -> Any:
+        """Return value from extended_metadata if present, else raise AttributeError."""
+        if self.extended_metadata and name in self.extended_metadata:
+            return self.extended_metadata[name]
+        raise AttributeError(f"{type(self).__name__} object has no attribute {name!r}")
 
 
 class Waveform(Datum, ABC):

@@ -14,6 +14,8 @@ import pytest
 
 from conftest import PROJECT_ROOT_DIR
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
 
 @pytest.fixture(name="docs_server")
 def fixture_docs_server(site_dir: str) -> Generator[str, None, None]:
