@@ -18,6 +18,40 @@ Valid subsections within a version are:
 
 Things to be included in the next release go here.
 
+---
+
+## v0.4.1 (2026-05-21)
+
+### Merged Pull Requests
+
+- chore(deps): remove versioning strategy for pre-commit dependencies since it isn't supported ([#184](https://github.com/tektronix/tm_data_types/pull/184))
+- chore: add dependabot configuration for pre-commit dependencies ([#182](https://github.com/tektronix/tm_data_types/pull/182))
+- python-deps(deps): bump the python-dependencies group across 1 directory with 15 updates ([#181](https://github.com/tektronix/tm_data_types/pull/181))
+- Fix swapped .mat waveform file properties ([#174](https://github.com/tektronix/tm_data_types/pull/174))
+- Update poetry dependencies ([#172](https://github.com/tektronix/tm_data_types/pull/172))
+- python-deps(deps): bump the python-dependencies group across 1 directory with 28 updates ([#165](https://github.com/tektronix/tm_data_types/pull/165))
+
+### Fixed
+
+- Fixed MAT waveform property handling in mat.py, improving reliability when reading and propagating waveform metadata.([#150](https://github.com/tektronix/tm_data_types/issues/150))
+
+---
+
+## v0.4.0 (2026-02-27)
+
+### Merged Pull Requests
+
+- gh-actions(deps): bump the gh-actions-dependencies group with 12 updates ([#154](https://github.com/tektronix/tm_data_types/pull/154))
+- python-deps(deps): bump the python-dependencies group with 7 updates ([#153](https://github.com/tektronix/tm_data_types/pull/153))
+- chore: update dependencies in requirements.txt and pyproject.toml for documentation builds ([#152](https://github.com/tektronix/tm_data_types/pull/152))
+- gh-actions(deps): bump the gh-actions-dependencies group with 13 updates ([#143](https://github.com/tektronix/tm_data_types/pull/143))
+- python-deps(deps): bump the python-dependencies group with 3 updates ([#151](https://github.com/tektronix/tm_data_types/pull/151))
+- Update linting ([#149](https://github.com/tektronix/tm_data_types/pull/149))
+- Ganesh12/wfm file type check ([#145](https://github.com/tektronix/tm_data_types/pull/145))
+- python-deps(deps): bump the python-dependencies group across 1 directory with 15 updates ([#148](https://github.com/tektronix/tm_data_types/pull/148))
+- chore: Drop support for Python 3.9, since it is EOL ([#146](https://github.com/tektronix/tm_data_types/pull/146))
+- gh-actions(deps): bump tektronix/python-package-ci-cd ([#129](https://github.com/tektronix/tm_data_types/pull/129))
+
 ### Fixed
 
 - Updated `check_style()` logic to properly detect Digital and IQ waveform file types in addition to Analog waveforms.
